@@ -1,3 +1,4 @@
+/* ============ NAI 核心样式 ============ */
 .nai-gen-settings { --nai-primary: #7c5cbf; --nai-border: #444; --nai-text: #fff; --nai-muted: #9ca3af; }
 .nai-header-title { color: #7c5cbf; font-size: 14px; text-shadow: 0 0 5px rgba(124,92,191,0.5); }
 .nai-section { margin: 12px 0; }
@@ -7,47 +8,157 @@
 .nai-hint code { padding: 2px 5px; background: rgba(124,92,191,0.2); border-radius: 3px; font-family: monospace; }
 .nai-status { font-size: 12px; margin-left: 8px; }
 
-.nai-gen-box {
-    margin: 12px 0; padding: 14px;
-    border: 1px solid var(--nai-border, #444);
+/* ============ GBA 悬浮窗样式 (完美移植) ============ */
+#nai_style_gen {
+    position: fixed; top: 100px; right: 20px; width: 220px; z-index: 2000;
+    font-family: "Futura", system-ui, sans-serif;
+    user-select: none;
+}
+
+/* 卡带外壳 */
+.gba-shell {
+    position: relative; width: 220px; height: 220px;
+    background: linear-gradient(180deg,#c0bbbd 0%,#aba7ad 100%);
     border-radius: 8px;
-    background: rgba(0,0,0,0.2);
-    transition: border-color 0.2s;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3), inset 0 -1px 0 rgba(255,255,255,0.25), inset 0 1px 3px rgba(0,0,0,0.25);
+    overflow: hidden; transition: border-radius 0.15s;
 }
-.nai-gen-box:hover { border-color: #7c5cbf; }
-.nai-prompt-display {
-    display: flex; align-items: flex-start; gap: 8px;
-    margin-bottom: 12px; padding: 10px 12px;
-    background: linear-gradient(135deg, rgba(124,92,191,0.1), rgba(168,85,247,0.1));
-    border-radius: 4px; font-size: 13px; word-break: break-word;
+.gba-shell.panel-open { border-radius: 8px 8px 0 0; box-shadow: none; }
+
+/* 纹理与光效 */
+.gba-texture {
+    position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.2; pointer-events: none; mix-blend-mode: overlay;
 }
-.nai-prompt-icon { flex-shrink: 0; font-size: 16px; }
-.nai-gen-btn {
-    padding: 8px 16px; border: none; border-radius: 4px;
-    background: #7c5cbf; color: #fff; font-size: 13px; cursor: pointer;
+.gba-bright {
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg,rgba(255,255,255,0.1) 0%,transparent 50%,rgba(0,0,0,0.05) 100%);
+    pointer-events: none; mix-blend-mode: lighten;
 }
-.nai-gen-btn:hover:not(:disabled) { background: #9171d1; }
-.nai-gen-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.nai-result { margin-top: 12px; }
-.nai-result-img {
-    max-width: 100%; max-height: 450px; border-radius: 8px;
-    cursor: pointer; display: block; margin: 5px 0;
+
+/* Logo 区域 */
+.gba-logo {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 110px; height: 34px; background: #2d2d2d;
+    border: 3px solid #1a1a1a; border-radius: 4px; cursor: pointer;
+    box-shadow: inset -2px -2px 0 #1a1a1a, inset 2px 2px 0 #4a4a4a, 0 2px 0 #1a1a1a;
+    display: flex; align-items: center; justify-content: center;
 }
-.nai-result-img:hover { transform: scale(1.02); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
-.nai-error {
-    padding: 12px; background: rgba(239,68,68,0.1);
-    border: 1px solid rgba(239,68,68,0.3); border-radius: 4px;
-    color: #ef4444; font-size: 13px;
+.gba-logo:hover { background: #3d3d3d; }
+.gba-logo:active { transform: translateX(-50%) translateY(2px); box-shadow: inset 2px 2px 0 #1a1a1a; }
+.gba-logo-text {
+    font-size: 12px; font-weight: bold; font-family: monospace;
+    color: #7cfc00; text-shadow: 0 0 4px #7cfc00, 2px 2px 0 #1a1a1a;
+    letter-spacing: -0.5px;
 }
-.nai-loading {
-    padding: 20px; text-align: center; color: #7c5cbf;
-    font-family: monospace; text-shadow: 0 0 10px rgba(124,92,191,0.5);
+
+/* 装饰线条 */
+.gba-vline {
+    position: absolute; top: 48px; width: 6px; height: 140px; border-radius: 2px;
+    background: linear-gradient(90deg,#827e84 0%,#a19ea4 100%);
+    box-shadow: inset -1px 1px 2px rgba(0,0,0,0.25), inset 0 -1px 0 rgba(255,255,255,0.25);
 }
-.nai-image-actions {
-    display: flex; gap: 6px; margin-top: 6px;
+.gba-vline-left { left: 0; }
+.gba-vline-right { right: 0; background: linear-gradient(90deg,#a19ea4 0%,#827e84 100%); }
+
+/* 中央贴纸 */
+.gba-sticker {
+    position: absolute; top: 48px; left: 10px; right: 10px; height: 140px;
+    background: linear-gradient(180deg,#868487 0%,#9e9b9c 100%);
+    border-radius: 4px;
+    box-shadow: inset 0 -1px 0 rgba(255,255,255,0.25), inset 0 1px 2px rgba(0,0,0,0.25);
+    overflow: hidden;
 }
-.nai-action-btn {
-    padding: 4px 10px; background: rgba(0,0,0,0.6); border: none;
-    border-radius: 4px; color: #fff; font-size: 12px; cursor: pointer;
+.gba-sticker-inner {
+    position: absolute; top: 5px; left: 12px; right: 12px; bottom: 5px;
+    background: #fff; border-radius: 4px; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
-.nai-action-btn:hover { background: rgba(124,92,191,0.8); }
+.gba-preview-img {
+    position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 1; transition: background-image 0.3s;
+}
+.gba-status {
+    position: absolute; bottom: 4px; width: 100%; text-align: center;
+    font-size: 10px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    z-index: 2; font-weight: bold;
+}
+
+/* 侧边文字 */
+.gba-sidebar {
+    position: absolute; top: 0; bottom: 0; width: 12px; background: #d9d9d9;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.gba-sidebar-left { left: 0; border-radius: 4px 0 0 4px; }
+.gba-sidebar-right { right: 0; border-radius: 0 4px 4px 0; }
+.gba-sidebar-text {
+    font-size: 6px; font-weight: 500; color: #030303;
+    writing-mode: vertical-rl; text-orientation: mixed;
+    letter-spacing: 0.5px; text-transform: uppercase;
+}
+.gba-sidebar-left .gba-sidebar-text { transform: rotate(180deg); }
+
+/* 底部开关 */
+.gba-arrow {
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    width: 22px; height: 14px; cursor: pointer; transition: transform 0.2s;
+    background: rgba(0,0,0,0.1); border-radius: 4px; display: flex;
+    align-items: center; justify-content: center; color: #555;
+    font-size: 10px;
+}
+.gba-arrow:hover { transform: translateX(-50%) scale(1.1); background: rgba(0,0,0,0.2); }
+.gba-arrow.expanded { transform: translateX(-50%) rotate(180deg); }
+
+/* 关闭按钮 */
+.gba-close {
+    position: absolute; top: 5px; right: 5px; width: 20px; height: 20px;
+    background: rgba(0,0,0,0.15); border: none; border-radius: 50%;
+    color: #666; font-size: 12px; cursor: pointer; z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+}
+.gba-close:hover { background: #ef4444; color: #fff; }
+
+/* 展开面板 */
+.gba-panel {
+    background: linear-gradient(180deg,#8a868c 0%,#7a767c 50%,#6a666c 100%);
+    border-radius: 0 0 8px 8px; padding: 12px; margin-top: 0;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+.gba-row { margin-bottom: 8px; }
+.gba-select {
+    width: 100%; padding: 8px 10px; border: none; border-radius: 4px;
+    background: linear-gradient(135deg,#2d1b4e 0%,#1a1a2e 100%);
+    color: #fff; font-size: 12px; cursor: pointer;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+}
+
+/* 按钮组 */
+.gba-buttons { display: flex; gap: 4px; margin-bottom: 8px; }
+.gba-btn {
+    flex: 1; padding: 10px 4px; border: 3px solid #1a1a1a; border-radius: 4px;
+    font-size: 10px; font-weight: bold; font-family: monospace;
+    cursor: pointer; transition: all 0.1s;
+    box-shadow: inset -2px -2px 0 #1a1a1a, inset 2px 2px 0 rgba(255,255,255,0.2);
+}
+.gba-btn:hover { transform: translateY(-1px); }
+.gba-btn:active { transform: translateY(2px); box-shadow: none; }
+
+.gba-btn-gen { background: linear-gradient(180deg,#4a9c20 0%,#3a7c10 100%); color: #d4ffa0; text-shadow: 1px 1px 0 #1a3a00; }
+.gba-btn-multi { background: linear-gradient(180deg,#3a7cac 0%,#2a5c8c 100%); color: #a0d4ff; text-shadow: 1px 1px 0 #0a2a4a; }
+.gba-btn-regen { background: linear-gradient(180deg,#ac5c3a 0%,#8c3c2a 100%); color: #ffd4a0; text-shadow: 1px 1px 0 #3a1a0a; }
+
+/* 自动生图开关 */
+.gba-auto-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.gba-auto-box {
+    display: flex; align-items: center; gap: 6px; background: #1a1a1a;
+    border: 2px solid #1a1a1a; border-radius: 4px; padding: 0 6px;
+    cursor: pointer; height: 36px; box-sizing: border-box;
+}
+.gba-auto-label { font-size: 10px; color: #7cfc00; font-family: monospace; }
+.gba-auto-status {
+    font-size: 10px; color: #7cfc00; padding: 0 10px;
+    background: #1a1a1a; border-radius: 4px; height: 36px;
+    display: flex; align-items: center; justify-content: center; flex: 1;
+}
+.gba-auto-status.working { color: #fcfc00; animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: 0.5; } }
