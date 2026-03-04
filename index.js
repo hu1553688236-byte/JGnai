@@ -2,7 +2,14 @@ import { extension_settings } from "../../../extensions.js";
 import { saveSettingsDebounced } from "../../../../script.js";
 
 const MODULE_NAME = 'nai_image_gen';
-const extensionFolderPath = `scripts/extensions/third-party/NAI-ImageGen`;
+
+// 自动检测路径
+const extensionFolderPath = (() => {
+    const url = new URL(import.meta.url);
+    const parts = url.pathname.split('/');
+    parts.pop();
+    return parts.join('/');
+})();
 
 const V4_MODELS = [
     'nai-diffusion-4-5-curated', 'nai-diffusion-4-5-full',
@@ -146,7 +153,6 @@ async function generateImage(prompt) {
         body: JSON.stringify(body)
     });
 
-    // 返回的是图片 blob
     const blob = await res.blob();
     if (blob.size < 1000) {
         throw new Error('返回数据异常');
@@ -197,12 +203,18 @@ async function handleGenClick(event) {
         `;
 
         btn.textContent = '🔄 重新生成';
-        toastr.success('图片生成成功！');
+
+        if (typeof toastr !== 'undefined') {
+            toastr.success('图片生成成功！');
+        }
 
     } catch (err) {
         resultDiv.innerHTML = `<div class="nai-error">❌ ${escapeHtml(err.message)}</div>`;
         btn.textContent = '✨ 重试';
-        toastr.error(err.message);
+
+        if (typeof toastr !== 'undefined') {
+            toastr.error(err.message);
+        }
     }
 
     btn.disabled = false;
@@ -220,13 +232,16 @@ async function processMessage(messageId) {
     const mesText = mes.querySelector('.mes_text');
     if (!mesText) return;
 
+    // 如果已经处理过（包含生成组件），跳过
+    if (mesText.querySelector('.nai-gen-box')) return;
+
     const pattern = buildPattern();
     const html = mesText.innerHTML;
 
     if (!pattern.test(html)) return;
     pattern.lastIndex = 0;
 
-    // 等 500ms 确认内容稳定
+    // 等 500ms 确认内容稳定（流式传输中可能还在变）
     await new Promise(r => setTimeout(r, 500));
     if (mesText.innerHTML !== html) return;
 
@@ -243,6 +258,8 @@ async function processMessage(messageId) {
         mesText.querySelectorAll('.nai-gen-btn').forEach(btn => {
             btn.addEventListener('click', handleGenClick);
         });
+
+        console.log(`[NAI-ImageGen] 已处理消息 #${messageId}`);
     } finally {
         isProcessingMessage = false;
     }
@@ -316,12 +333,15 @@ function onSettingChange() {
 
 jQuery(async () => {
     console.log('[NAI-ImageGen] 加载中...');
+    console.log('[NAI-ImageGen] 扩展路径:', extensionFolderPath);
 
     try {
         const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
         $("#extensions_settings").append(settingsHtml);
+        console.log('[NAI-ImageGen] 设置面板加载成功');
     } catch (err) {
         console.error('[NAI-ImageGen] 加载设置面板失败:', err);
+        console.error('[NAI-ImageGen] 尝试路径:', `${extensionFolderPath}/settings.html`);
         return;
     }
 
@@ -369,9 +389,11 @@ jQuery(async () => {
         s.token = $("#nai_token").val().trim();
 
         if (!s.baseUrl || !s.token) {
-            toastr.warning('请填写服务器地址和 Token');
+            if (typeof toastr !== 'undefined') toastr.warning('请填写服务器地址和 Token');
             return;
         }
+
+        saveSettingsDebounced();
 
         const btn = $(this);
         btn.prop("disabled", true).val("测试中...");
@@ -383,7 +405,9 @@ jQuery(async () => {
             saveSettingsDebounced();
             updateLoginStatus();
 
-            toastr.success(`连接成功！模型: ${health.models || '?'}个`);
+            if (typeof toastr !== 'undefined') {
+                toastr.success(`连接成功！模型: ${health.models || '?'}个`);
+            }
 
             // 获取配额
             try {
@@ -392,7 +416,7 @@ jQuery(async () => {
                     `今日已用: ${stats.today_used} | 剩余: ${stats.today_remaining} | 限制: ${stats.rate_limit}`
                 );
             } catch (e) {
-                // 忽略
+                console.warn('[NAI-ImageGen] 获取配额失败:', e);
             }
 
             setTimeout(processAllMessages, 200);
@@ -401,10 +425,20 @@ jQuery(async () => {
             s.verified = false;
             saveSettingsDebounced();
             updateLoginStatus();
-            toastr.error('连接失败: ' + err.message);
+            if (typeof toastr !== 'undefined') toastr.error('连接失败: ' + err.message);
         }
 
         btn.prop("disabled", false).val("测试连接");
+    });
+
+    // 事件委托：生成按钮（兼容动态创建的按钮）
+    $(document).on("click", ".nai-gen-btn", function (e) {
+        handleGenClick(e);
+    });
+
+    // 事件委托：图片点击打开
+    $(document).on("click", ".nai-result-img", function () {
+        window.open(this.src, '_blank');
     });
 
     loadSettingsUI();
@@ -412,48 +446,85 @@ jQuery(async () => {
     // 自动验证
     const s = getSettings();
     if (s.baseUrl && s.token) {
+        console.log('[NAI-ImageGen] 自动验证连接...');
         try {
-            await testConnection();
+            const health = await testConnection();
             s.verified = true;
             saveSettingsDebounced();
             updateLoginStatus();
+            console.log('[NAI-ImageGen] 自动连接成功');
+
+            try {
+                const stats = await getStats();
+                $("#nai_quota_info").text(
+                    `今日已用: ${stats.today_used} | 剩余: ${stats.today_remaining} | 限制: ${stats.rate_limit}`
+                );
+            } catch (e) {
+                // 忽略
+            }
         } catch (e) {
+            console.warn('[NAI-ImageGen] 自动验证失败:', e.message);
             s.verified = false;
             saveSettingsDebounced();
+            updateLoginStatus();
         }
     }
 
-    // 监听事件
-    const { eventSource, event_types } = SillyTavern.getContext();
+    // 监听 SillyTavern 事件
+    try {
+        const { eventSource, event_types } = SillyTavern.getContext();
 
-    eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, (id) => {
-        setTimeout(() => processMessage(id).catch(console.error), 300);
-    });
+        eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, (id) => {
+            setTimeout(() => processMessage(id).catch(err => {
+                console.error('[NAI-ImageGen] processMessage error:', err);
+            }), 300);
+        });
 
-    eventSource.on(event_types.USER_MESSAGE_RENDERED, (id) => {
-        setTimeout(() => processMessage(id).catch(console.error), 300);
-    });
+        eventSource.on(event_types.USER_MESSAGE_RENDERED, (id) => {
+            setTimeout(() => processMessage(id).catch(err => {
+                console.error('[NAI-ImageGen] processMessage error:', err);
+            }), 300);
+        });
 
-    eventSource.on(event_types.MESSAGE_EDITED, (id) => {
-        setTimeout(() => processMessage(id).catch(console.error), 100);
-    });
+        eventSource.on(event_types.MESSAGE_EDITED, (id) => {
+            setTimeout(() => processMessage(id).catch(err => {
+                console.error('[NAI-ImageGen] processMessage error:', err);
+            }), 100);
+        });
 
-    eventSource.on(event_types.CHAT_CHANGED, () => {
-        setTimeout(processAllMessages, 200);
-    });
+        eventSource.on(event_types.CHAT_CHANGED, () => {
+            setTimeout(processAllMessages, 200);
+        });
 
-    // 轮询兜底
+        eventSource.on(event_types.MESSAGE_SWIPED, () => {
+            setTimeout(processAllMessages, 100);
+        });
+
+        console.log('[NAI-ImageGen] 事件监听器已绑定');
+    } catch (err) {
+        console.warn('[NAI-ImageGen] 无法绑定事件:', err);
+    }
+
+    // 轮询兜底：每 3 秒扫描一次未处理的标记
     setInterval(() => {
         const s = getSettings();
         if (!s.enabled || !s.token || !s.verified) return;
+
         const pattern = buildPattern();
         document.querySelectorAll('#chat .mes .mes_text').forEach(mesText => {
+            // 跳过已处理的
+            if (mesText.querySelector('.nai-gen-box')) return;
+
             if (pattern.test(mesText.innerHTML)) {
                 pattern.lastIndex = 0;
                 const mes = mesText.closest('.mes');
                 if (mes) {
                     const id = parseInt(mes.getAttribute('mesid'), 10);
-                    if (!isNaN(id)) processMessage(id).catch(console.error);
+                    if (!isNaN(id)) {
+                        processMessage(id).catch(err => {
+                            console.error('[NAI-ImageGen] 轮询 processMessage error:', err);
+                        });
+                    }
                 }
             }
             pattern.lastIndex = 0;
@@ -461,5 +532,6 @@ jQuery(async () => {
     }, 3000);
 
     setTimeout(processAllMessages, 500);
+
     console.log('[NAI-ImageGen] 加载完成');
 });
